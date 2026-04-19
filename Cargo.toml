@@ -1,0 +1,3 @@
+[workspace]
+members = ["crates/merge-lens-core", "crates/merge-lens-wasm", "app"]
+resolver = "2"

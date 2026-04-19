@@ -1,0 +1,23 @@
+{
+  "id": "usr_001",
+  "name": "Alice T. Nguyen",
+  "email": "alice.nguyen@example.com",
+  "age": 30,
+  "active": false,
+  "address": {
+    "street": "88 Congress St",
+    "city": "Austin",
+    "state": "TX",
+    "zip": "78704"
+  },
+  "preferences": {
+    "theme": "dark",
+    "notifications": {
+      "email": false,
+      "sms": false,
+      "push": true
+    },
+    "language": "en"
+  },
+  "tags": ["admin", "beta-user"]
+}

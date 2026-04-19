@@ -1,0 +1,283 @@
+{
+  "org": {
+    "id": "org_acme",
+    "name": "Acme Corp",
+    "plan": "enterprise",
+    "region": "us-east-1",
+    "created_at": "2019-06-01",
+    "owner_email": "cto@acme.com"
+  },
+  "services": {
+    "api_gateway": {
+      "enabled": true,
+      "version": "3.5.0",
+      "rate_limit": { "requests_per_second": 1000, "burst": 2000 },
+      "auth": { "provider": "jwt", "expiry_seconds": 3600, "refresh_enabled": true },
+      "cors": { "allowed_origins": ["https://app.acme.com", "https://admin.acme.com"], "allow_credentials": true },
+      "logging": { "level": "info", "destination": "cloudwatch", "retention_days": 30 }
+    },
+    "user_service": {
+      "enabled": true,
+      "version": "2.2.0",
+      "replicas": 4,
+      "resources": { "cpu": "750m", "memory": "768Mi" },
+      "db": { "host": "users-db.internal", "port": 5432, "name": "users", "pool_size": 30 },
+      "cache": { "provider": "redis", "ttl_seconds": 600, "max_entries": 100000 },
+      "features": {
+        "sso": true,
+        "mfa": true,
+        "magic_link": true,
+        "password_reset": true
+      }
+    },
+    "inventory_service": {
+      "enabled": true,
+      "version": "1.9.0",
+      "replicas": 3,
+      "resources": { "cpu": "500m", "memory": "512Mi" },
+      "db": { "host": "inventory-db.internal", "port": 5432, "name": "inventory", "pool_size": 15 },
+      "sync": { "interval_seconds": 30, "batch_size": 1000, "retry_limit": 5 }
+    },
+    "notification_service": {
+      "enabled": true,
+      "version": "1.2.5",
+      "replicas": 2,
+      "channels": {
+        "email": { "provider": "sendgrid", "from": "no-reply@acme.com", "daily_limit": 10000 },
+        "sms": { "provider": "twilio", "from": "+18005550100", "daily_limit": 2000 },
+        "push": { "provider": "firebase", "enabled": true }
+      },
+      "queue": { "provider": "sqs", "name": "notifications-prod", "visibility_timeout": 30 }
+    },
+    "analytics_service": {
+      "enabled": true,
+      "version": "2.1.0",
+      "replicas": 2,
+      "pipeline": {
+        "ingest": { "batch_size": 2000, "flush_interval_ms": 2000 },
+        "storage": { "provider": "s3", "bucket": "acme-analytics-prod", "prefix": "events/" },
+        "retention_days": 180
+      }
+    },
+    "search_service": {
+      "enabled": true,
+      "version": "1.0.0",
+      "replicas": 2,
+      "provider": "elasticsearch",
+      "index": { "shards": 5, "replicas": 1 }
+    }
+  },
+  "environments": {
+    "production": {
+      "domain": "api.acme.com",
+      "tls": { "enabled": true, "cert_arn": "arn:aws:acm:us-east-1:123456:certificate/abc" },
+      "auto_scaling": { "min": 3, "max": 15, "target_cpu": 65 },
+      "alerts": {
+        "error_rate_threshold": 0.005,
+        "latency_p99_ms": 300,
+        "notify": ["oncall@acme.com", "sre@acme.com"]
+      }
+    },
+    "staging": {
+      "domain": "api-staging.acme.com",
+      "tls": { "enabled": true, "cert_arn": "arn:aws:acm:us-east-1:123456:certificate/def" },
+      "auto_scaling": { "min": 1, "max": 3, "target_cpu": 80 },
+      "alerts": {
+        "error_rate_threshold": 0.05,
+        "latency_p99_ms": 1000,
+        "notify": ["dev@acme.com"]
+      }
+    },
+    "development": {
+      "domain": "api-dev.acme.com",
+      "tls": { "enabled": false, "cert_arn": null },
+      "auto_scaling": { "min": 1, "max": 1, "target_cpu": 90 },
+      "alerts": null
+    }
+  },
+  "feature_flags": {
+    "new_checkout_flow": { "enabled": true, "rollout_percent": 50, "target_segments": ["beta"] },
+    "ai_recommendations": { "enabled": false, "rollout_percent": 0, "target_segments": [] },
+    "bulk_export": { "enabled": true, "rollout_percent": 100, "target_segments": ["enterprise"] },
+    "dark_mode": { "enabled": true, "rollout_percent": 100, "target_segments": [] },
+    "beta_dashboard": { "enabled": true, "rollout_percent": 50, "target_segments": ["beta"] }
+  },
+  "integrations": {
+    "stripe": {
+      "enabled": true,
+      "api_version": "2024-04-10",
+      "webhook_events": ["payment_intent.succeeded", "payment_intent.failed", "customer.subscription.updated"],
+      "retry_attempts": 5
+    },
+    "salesforce": {
+      "enabled": true,
+      "instance_url": "https://acme.salesforce.com",
+      "sync_interval_minutes": 5,
+      "objects": ["Contact", "Opportunity", "Account", "Lead"],
+      "field_mapping": {
+        "user.email": "Contact.Email",
+        "user.name": "Contact.Name",
+        "order.total": "Opportunity.Amount"
+      }
+    },
+    "slack": {
+      "enabled": true,
+      "workspace": "acme-corp",
+      "channels": {
+        "alerts": "#ops-alerts",
+        "deployments": "#deployments",
+        "signups": "#growth"
+      }
+    },
+    "datadog": {
+      "enabled": true,
+      "site": "datadoghq.com",
+      "apm": true,
+      "logs": true,
+      "metrics_prefix": "acme."
+    }
+  },
+  "departments": [
+    {
+      "id": "dept_eng",
+      "name": "Engineering",
+      "head": "Sarah Kim",
+      "headcount": 28,
+      "budget_usd": 3800000,
+      "teams": [
+        {
+          "id": "team_backend",
+          "name": "Backend",
+          "lead": "Carlos Ruiz",
+          "members": 10,
+          "stack": ["Rust", "PostgreSQL", "Redis", "Kafka"],
+          "on_call": true,
+          "sprint_velocity": 48
+        },
+        {
+          "id": "team_frontend",
+          "name": "Frontend",
+          "lead": "Priya Sharma",
+          "members": 7,
+          "stack": ["TypeScript", "React", "Tailwind"],
+          "on_call": false,
+          "sprint_velocity": 40
+        },
+        {
+          "id": "team_platform",
+          "name": "Platform",
+          "lead": "Tom Walsh",
+          "members": 6,
+          "stack": ["Kubernetes", "Terraform", "Go"],
+          "on_call": true,
+          "sprint_velocity": 33
+        },
+        {
+          "id": "team_data",
+          "name": "Data",
+          "lead": "Lin Feng",
+          "members": 5,
+          "stack": ["Python", "dbt", "Spark", "Redshift"],
+          "on_call": false,
+          "sprint_velocity": 28
+        }
+      ]
+    },
+    {
+      "id": "dept_product",
+      "name": "Product",
+      "head": "Marco Torres",
+      "headcount": 12,
+      "budget_usd": 1600000,
+      "teams": [
+        {
+          "id": "team_core",
+          "name": "Core Product",
+          "lead": "Aisha Patel",
+          "members": 5,
+          "stack": [],
+          "on_call": false,
+          "sprint_velocity": null
+        },
+        {
+          "id": "team_growth",
+          "name": "Growth",
+          "lead": "Jake Rivera",
+          "members": 4,
+          "stack": [],
+          "on_call": false,
+          "sprint_velocity": null
+        }
+      ]
+    },
+    {
+      "id": "dept_sales",
+      "name": "Sales",
+      "head": "Dana Lee",
+      "headcount": 18,
+      "budget_usd": 2100000,
+      "teams": [
+        {
+          "id": "team_smb",
+          "name": "SMB",
+          "lead": "Raj Mehta",
+          "members": 8,
+          "stack": [],
+          "on_call": false,
+          "sprint_velocity": null
+        },
+        {
+          "id": "team_enterprise",
+          "name": "Enterprise",
+          "lead": "Natalie Brooks",
+          "members": 6,
+          "stack": [],
+          "on_call": false,
+          "sprint_velocity": null
+        }
+      ]
+    },
+    {
+      "id": "dept_support",
+      "name": "Customer Support",
+      "head": "Omar Hassan",
+      "headcount": 15,
+      "budget_usd": 1100000,
+      "teams": [
+        {
+          "id": "team_tier1",
+          "name": "Tier 1",
+          "lead": "Yuki Tanaka",
+          "members": 9,
+          "stack": ["Zendesk", "Intercom"],
+          "on_call": true,
+          "sprint_velocity": null
+        },
+        {
+          "id": "team_tier2",
+          "name": "Tier 2 / Solutions",
+          "lead": "Elena Costa",
+          "members": 6,
+          "stack": ["Zendesk", "SQL"],
+          "on_call": false,
+          "sprint_velocity": null
+        }
+      ]
+    }
+  ],
+  "compliance": {
+    "soc2": { "certified": true, "last_audit": "2023-11-01", "next_audit": "2024-11-01" },
+    "gdpr": { "dpa_signed": true, "data_retention_days": 365, "right_to_erasure": true },
+    "hipaa": { "applicable": false },
+    "pci_dss": { "level": "SAQ-A", "last_scan": "2024-03-01" }
+  },
+  "billing": {
+    "plan": "enterprise",
+    "seats": 100,
+    "overage_rate_per_seat": 49.00,
+    "billing_email": "billing@acme.com",
+    "payment_method": "invoice",
+    "net_terms": 30,
+    "renewal_date": "2025-01-01"
+  }
+}
