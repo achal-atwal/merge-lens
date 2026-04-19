@@ -1,0 +1,5 @@
+/app/dist/
+/crates/merge-lens-wasm/pkg/
+/target/
+.DS_Store
+
