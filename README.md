@@ -8,6 +8,21 @@ A WASM-powered JSON diff and merge conflict visualizer built in Rust. Given two 
 
 ---
 
+## Table of Contents
+
+- [How It Works](#how-it-works)
+- [Architecture](#architecture)
+- [Project Structure](#project-structure)
+- [Core Types](#core-types)
+- [Build](#build)
+- [Using the Web App](#using-the-web-app)
+- [Using the WASM API](#using-the-wasm-api-jsts)
+- [Tech Stack](#tech-stack)
+- [Dependencies](#dependencies)
+- [Future Roadmap](#future-roadmap)
+
+---
+
 ## How It Works
 
 merge-lens processes documents in two stages: **diffing** and **merging**.
@@ -85,6 +100,45 @@ Every node in the diff tree is identified by a `JsonPath` — a `Vec<PathSegment
 
 ## Architecture
 
+merge-lens uses a **layered crate design**. The diff and merge logic lives in a standalone Rust library with no browser dependencies. Two consumers sit on top of it: the web app and an optional standalone WASM package.
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  merge-lens-core  (pure Rust library)                            │
+│  ─────────────────────────────────                               │
+│  diff_two()          DiffNode tree                               │
+│  diff_three()   ──►  DiffResult { root, conflict_count, ... }   │
+│  apply_resolutions() MergeResult { merged, unresolved }          │
+└──────────────────┬───────────────────────────────────────────────┘
+                   │  direct Rust crate dependency (no WASM)
+          ┌────────┴────────┐
+          ▼                 ▼
+┌─────────────────┐  ┌──────────────────────────────────────────┐
+│  app/           │  │  merge-lens-wasm                         │
+│  Leptos 0.7 CSR │  │  thin wasm-bindgen wrapper               │
+│  web app        │  │  wasm_diff_two / wasm_diff_three /        │
+│  (trunk)        │  │  wasm_apply_merge  (JSON in → JSON out)  │
+└─────────────────┘  └──────────────────────────────────────────┘
+                              │
+                              ▼
+                     external JS/TS consumers
+                     (any framework or runtime)
+```
+
+### Key design decisions
+
+**No WASM boundary inside the app.** The Leptos app depends directly on `merge-lens-core` as a Rust crate. The diff and merge functions are plain Rust function calls — no serialization overhead. The `merge-lens-wasm` crate is a separate artifact for external JS/TS consumers who need the browser WASM API.
+
+**Pure Rust core.** `merge-lens-core` has no browser dependencies, no `wasm-bindgen`. It's a normal Rust library that can be tested with `cargo test` on any platform, embedded in other Rust tools, or exposed over any API boundary.
+
+**3-way merge semantics (Git-style).** A conflict occurs when both mine and theirs differ from base, and differ from each other. Non-conflicting changes are auto-merged. This is different from CRDT-based tools (like Figma) where conflicts are invisible; here conflicts are surfaced explicitly for user resolution.
+
+**Arrays as opaque blobs.** Arrays are diffed as whole values. If the array changed on both sides differently, the entire array is flagged as a conflict and resolved by choosing one version. Element-level LCS diffing is on the future roadmap.
+
+---
+
+## Project Structure
+
 ```
 merge-lens/
 ├── crates/
@@ -113,16 +167,6 @@ merge-lens/
 │
 └── Cargo.toml                  Workspace manifest
 ```
-
-### Key design decisions
-
-**No WASM boundary inside the app.** The Leptos app depends directly on `merge-lens-core` as a Rust crate. The diff and merge functions are plain Rust function calls — no serialization overhead. The `merge-lens-wasm` crate is a separate artifact for external JS/TS consumers who need the browser WASM API.
-
-**Pure Rust core.** `merge-lens-core` has no browser dependencies, no `wasm-bindgen`. It's a normal Rust library that can be tested with `cargo test` on any platform, embedded in other Rust tools, or exposed over any API boundary.
-
-**3-way merge semantics (Git-style).** A conflict occurs when both mine and theirs differ from base, and differ from each other. Non-conflicting changes are auto-merged. This is different from CRDT-based tools (like Figma) where conflicts are invisible; here conflicts are surfaced explicitly for user resolution.
-
-**Arrays as opaque blobs.** Arrays are diffed as whole values. If the array changed on both sides differently, the entire array is flagged as a conflict and resolved by choosing one version. Element-level LCS diffing is on the future roadmap.
 
 ---
 
@@ -155,7 +199,7 @@ pub struct MergeResult {
 
 ---
 
-## Building
+## Build
 
 ### Prerequisites
 
@@ -191,8 +235,9 @@ trunk build --release
 
 ```bash
 cargo test -p merge-lens-core
-# 24 tests: 8 two-way, 10 three-way, 6 merge
 ```
+
+26 tests, 54 assertions covering two-way diff, three-way diff, and merge resolution.
 
 ### Build the standalone WASM package
 
@@ -288,10 +333,27 @@ All three functions accept JSON strings and return JSON strings. Errors are retu
 
 ---
 
+## Dependencies
+
+| Dependency | Version | How obtained | Purpose |
+|---|---|---|---|
+| `serde_json` | 1.x | Cargo | JSON parsing and serialization |
+| `indexmap` | 2.x | Cargo | Insertion-ordered map for object keys (preserves JSON field order) |
+| `wasm-bindgen` | 0.2 | Cargo | Rust-to-WASM FFI and JS interop |
+| `js-sys` | 0.3 | Cargo | Bindings to built-in JS types |
+| `web-sys` | 0.3 | Cargo | Bindings to browser Web APIs |
+| Leptos | 0.7 | Cargo | CSR reactive web UI framework |
+| trunk | latest | `cargo install trunk` | WASM build and dev server for the Leptos app |
+| wasm-pack | latest | `cargo install wasm-pack` | Builds the standalone `merge-lens-wasm` npm-compatible package |
+
+No runtime dependencies outside the browser. The core library builds and tests with a standard Rust toolchain.
+
+---
+
 ## Future Roadmap
 
 - **LCS-based array diffing** — element-level diff for arrays instead of whole-array conflict. Show individual added/removed/moved elements.
 
-- **Svelte UI** — a second frontend built with Svelte + the `merge-lens-wasm` package. The Rust core and WASM API stay the same; Svelte becomes an alternative to the Leptos app for users who prefer a JS-native stack.
+- **Alternative frontend** — a second frontend built with any web framework, library, or JS-native stack using the `merge-lens-wasm` package. The Rust core and WASM API stay the same; the frontend choice is independent.
 
 - **XML and other formats** — parse XML, YAML, and TOML inputs, normalize to an internal tree for diffing, and output the result in the original format.
